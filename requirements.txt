@@ -1,0 +1,13 @@
+# pip install fastapi uvicorn python-dotenv pymupdf python-docx sentence-transformers faiss-cpu langchain openai gtts pydantic nltk
+fastapi
+uvicorn
+python-dotenv
+pymupdf
+python-docx
+sentence-transformers
+faiss-cpu
+langchain
+openai
+gtts
+pydantic
+nltk
