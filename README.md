@@ -59,5 +59,36 @@ Download and install from: https://ollama.com/download
 Then pull a model:
 ```bash
 ollama pull llama3.2:3b
+```
+
+### 2. Install Python Dependencies
+```bash
+python -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
+
+pip install -r requirements.txt
+```
+
+### 3. Run the Application
+```bash
+uvicorn main:app --reload
+```
+Open your browser: [http://localhost:8000](http://localhost:8000/static/index.html)
+
+### 4. Test the Demo
+
+- Upload a text-based document (PDF/DOCX/TXT) from sample_pdfs/
+- Click Start Speaking → say a query like "Summarize this document"
+- Click Stop Speaking
+- View the generated answer and retrieved passages with similarity scores
+
+### Acceptance Test Cases (As Per Problem Statement)
+
+- Upload & RAG: Upload a PDF → ask "Summarize this document" → get coherent summary + retrieved passages
+- Voice-only flow: Entire interaction via microphone (partial feedback shown)
+- Traceability: Retrieved passages displayed with scores and source
+- Low latency: Partial updates appear promptly
+- Reliability: System handles stop gracefully and returns final result
 
 
+## Made by sarvesh-w
