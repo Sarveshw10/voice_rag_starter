@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
-[![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-orange)](https://ollama.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--3.5--turbo%20%7C%20Whisper-blue)](https://platform.openai.com/)
 
 A **real-time, voice-only** Retrieval-Augmented Generation system built as a solution to the **AI Engineer Intern Problem Statement**.
 
@@ -19,7 +19,7 @@ This implementation prioritizes **reliability, traceability, and a clean working
 - **Embeddings** using `sentence-transformers/all-MiniLM-L6-v2`
 - **Vector store** using FAISS (in-memory)
 - **RAG retrieval** — top 5 relevant passages with similarity scores
-- **Answer generation** using **local LLM via Ollama** (no API costs or quotas)
+- **Answer generation** using **OpenAI GPT-3.5-turbo** (streaming capable)
 - **Traceable output** — shows retrieved passages with scores and source
 - **Barge-in ready** (session structure supports future interruption handling)
 - **Minimal, clean frontend** (pure HTML + JS, no frameworks)
@@ -31,9 +31,9 @@ This implementation prioritizes **reliability, traceability, and a clean working
 - **Frontend**: Vanilla HTML/CSS/JS + MediaRecorder API
 - **Embeddings**: sentence-transformers
 - **Vector DB**: FAISS (local, fast)
-- **LLM**: Ollama (local) — default `llama3.2:3b` (free, offline)
+- **LLM & STT**: OpenAI API (GPT-3.5-turbo for generation, Whisper for potential future STT)
 - **Text Extraction**: PyMuPDF (fitz) + python-docx
-- **No external STT/TTS** (mocked for reliability; easy to extend)
+- **No external TTS** (text-only output for reliability; easy to extend)
 
 ## Project Structure
 
@@ -53,13 +53,10 @@ voice-rag-project/
 
 ## Quick Start
 
-### 1. Install Ollama (Local LLM)
-Download and install from: https://ollama.com/download
-
-Then pull a model:
-```bash
-ollama pull llama3.2:3b
-```
+### 1. Get OpenAI API Key
+- Go to https://platform.openai.com/api-keys
+- Create a new secret key
+- Copy it
 
 ### 2. Install Python Dependencies
 ```bash
