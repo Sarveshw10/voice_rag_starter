@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-First RAG System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
+        button { padding: 12px 24px; font-size: 16px; margin: 8px; cursor: pointer; }
+        #status, #result, #passages { margin: 20px 0; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .passage { margin: 15px 0; padding: 12px; background: #f0f8ff; border-left: 4px solid #007bff; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Voice-First RAG System</h1>
+    <p>Upload a document → Speak your question → Get answer with sources</p>
+
+    <div>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
+        <button id="uploadBtn">Upload Document</button>
+    </div>
+
+    <div>
+        <button id="speakBtn">Start Speaking</button>
+        <button id="stopBtn" disabled>Stop Speaking</button>
+    </div>
+
+    <div id="status"><strong>Status:</strong> Ready</div>
+    <div id="result"></div>
+    <div id="passages"></div>
+
+    <script>
+        let ws = null;
+        let recorder = null;
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const speakBtn = document.getElementById('speakBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        const passagesDiv = document.getElementById('passages');
+
+        uploadBtn.onclick = async () => {
+            const file = fileInput.files[0];
+            if (!file) return alert("Select a file first");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch("/upload_doc", { method: "POST", body: formData });
+            const data = await res.json();
+
+            if (data.status === "success") {
+                alert(`Success! ${data.chunks_added} chunks added from ${file.name}`);
+            } else {
+                alert("Upload failed or no text extracted (try a text-based PDF/TXT)");
+            }
+        };
+
+        speakBtn.onclick = async () => {
+            statusDiv.innerHTML = "<strong>Listening:</strong> Speak now...";
+            resultDiv.innerHTML = "";
+            passagesDiv.innerHTML = "";
+
+            ws = new WebSocket(`ws://${location.host}/ask`);
+
+            ws.onopen = () => {
+                speakBtn.disabled = true;
+                stopBtn.disabled = false;
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+
+                if (msg.type === "partial") {
+                    statusDiv.innerHTML = `<strong>Listening:</strong> ${msg.text}`;
+                } else if (msg.type === "final") {
+                    statusDiv.innerHTML = "<strong>Done!</strong>";
+                    resultDiv.innerHTML = `<strong>Question:</strong> ${msg.query}<br><br><strong>Answer:</strong><p style="font-size:18px;">${msg.answer}</p>`;
+                    passagesDiv.innerHTML = "<h3>Retrieved Passages (with similarity scores):</h3>" +
+                        msg.passages.map(p => 
+                            `<div class="passage"><strong>Score: ${p.score} | From: ${p.source}</strong><p>${p.text}</p></div>`
+                        ).join("");
+                    
+                    setTimeout(() => ws.close(), 1000);
+                }
+            };
+
+            ws.onclose = () => {
+                speakBtn.disabled = false;
+                stopBtn.disabled = true;
+                if (statusDiv.innerHTML.includes("Listening")) {
+                    statusDiv.innerHTML = "<strong>Status:</strong> Connection closed";
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+                    ws.send(e.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(new Blob([]));  // Signal end
+                    statusDiv.innerHTML = "<strong>Processing:</strong> Thinking...";
+                }
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            recorder.start(250);
+        };
+
+        stopBtn.onclick = () => {
+            if (recorder) recorder.stop();
+        };
+    </script>
+</body>
+</html>
