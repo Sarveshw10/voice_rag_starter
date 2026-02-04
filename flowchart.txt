@@ -1,5 +1,0 @@
-Tech Stack:
-Backend: FastAPI (or Flask if preferred, but FastAPI is better for async).
-Frontend: Basic HTML/JS with MediaRecorder or WebRTC for audio capture.
-No hardcoded secrets—use environment variables (e.g., via python-dotenv).
-Dependencies: Install via pip (e.g., fastapi, uvicorn, pydantic, websockets).
