@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-First RAG System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
+        button { padding: 12px 24px; font-size: 16px; margin: 8px; cursor: pointer; }
+        #status, #result, #passages { margin: 20px 0; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .passage { margin: 15px 0; padding: 12px; background: #f0f8ff; border-left: 4px solid #007bff; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Voice-First RAG System</h1>
+    <p>Upload document → Speak question → Get answer + sources</p>
+
+    <div>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
+        <button id="uploadBtn">Upload Document</button>
+    </div>
+
+    <div>
+        <button id="speakBtn">Start Speaking</button>
+        <button id="stopBtn" disabled>Stop Speaking</button>
+    </div>
+
+    <div id="status"><strong>Status:</strong> Ready</div>
+    <div id="result"></div>
+    <div id="passages"></div>
+
+    <script>
+        let ws = null;
+        let recognition = null;
+        let finalTranscript = '';
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const speakBtn = document.getElementById('speakBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        const passagesDiv = document.getElementById('passages');
+
+        uploadBtn.onclick = async () => {
+            const file = fileInput.files[0];
+            if (!file) return alert("Select a file first");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch("/upload_doc", { method: "POST", body: formData });
+            const data = await res.json();
+
+            alert(data.status === "success" ? `Success! ${data.chunks_added} chunks added.` : "Upload failed");
+        };
+
+        speakBtn.onclick = async () => {
+            finalTranscript = '';
+            statusDiv.innerHTML = "<strong>Connecting...</strong>";
+            resultDiv.innerHTML = "";
+            passagesDiv.innerHTML = "";
+
+            // Connect WebSocket first
+            ws = new WebSocket(`ws://${location.host}/ask`);
+
+            ws.onopen = () => {
+                console.log("WebSocket connected");
+                speakBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+                // Start speech recognition AFTER WebSocket is connected
+                if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    recognition = new SpeechRecognition();
+                    recognition.continuous = true;
+                    recognition.interimResults = true;
+                    recognition.lang = 'en-US';
+
+                    recognition.onstart = () => {
+                        console.log("Speech recognition started");
+                        statusDiv.innerHTML = "<strong>Listening:</strong> Speak now...";
+                    };
+
+                    recognition.onresult = (event) => {
+                        let interim = '';
+                        let newFinal = '';
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                newFinal += transcript + ' ';
+                            } else {
+                                interim += transcript;
+                            }
+                        }
+                        if (newFinal.trim()) {
+                            finalTranscript += newFinal;
+                            console.log("Final transcript so far:", finalTranscript);
+                        }
+                        statusDiv.innerHTML = `<strong>Listening:</strong> ${finalTranscript.trim()} <i>${interim}</i>`;
+                    };
+
+                    recognition.onerror = (e) => {
+                        console.error("Speech recognition error:", e.error);
+                        statusDiv.innerHTML = `<strong>Error:</strong> ${e.error}`;
+                        // Don't close WebSocket on error - let user try again
+                    };
+
+                    recognition.onend = () => {
+                        console.log("Speech recognition ended, final transcript:", finalTranscript);
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            if (finalTranscript.trim()) {
+                                console.log("Sending to server:", finalTranscript.trim());
+                                ws.send(finalTranscript.trim());
+                                ws.send("__DONE__");
+                                statusDiv.innerHTML = "<strong>Processing:</strong> Waiting for response...";
+                            } else {
+                                console.log("No transcript captured");
+                                statusDiv.innerHTML = "<strong>Error:</strong> No speech detected. Please try again.";
+                                ws.close();
+                            }
+                        } else {
+                            console.log("WebSocket not open, state:", ws ? ws.readyState : "null");
+                        }
+                    };
+
+                    try {
+                        recognition.start();
+                    } catch (error) {
+                        console.error("Failed to start speech recognition:", error);
+                        statusDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                    }
+                } else {
+                    statusDiv.innerHTML = "<strong>Warning:</strong> Browser does not support speech recognition (use Chrome/Edge).";
+                    ws.close();
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                statusDiv.innerHTML = "<strong>WebSocket Error:</strong> Connection failed";
+            };
+
+            ws.onmessage = (event) => {
+                console.log("Received message:", event.data);
+                const msg = JSON.parse(event.data);
+                if (msg.type === "partial") {
+                    statusDiv.innerHTML += `<br><strong>Server received:</strong> ${msg.text}`;
+                } else if (msg.type === "final") {
+                    statusDiv.innerHTML = "<strong>Done!</strong>";
+                    resultDiv.innerHTML = `<strong>Question:</strong> ${msg.query}<br><strong>Answer:</strong><p>${msg.answer}</p>`;
+                    passagesDiv.innerHTML = "<h3>Retrieved Passages:</h3>" +
+                        msg.passages.map(p => 
+                            `<div class="passage"><strong>Score: ${p.score} | From: ${p.source}</strong><p>${p.text}</p></div>`
+                        ).join("");
+                    if (recognition) {
+                        recognition.stop();
+                        recognition = null;
+                    }
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.close();
+                    }
+                }
+            };
+
+            ws.onclose = (event) => {
+                console.log("WebSocket closed:", event.code, event.reason);
+                speakBtn.disabled = false;
+                stopBtn.disabled = true;
+                if (statusDiv.innerHTML.includes("Listening") || statusDiv.innerHTML.includes("Processing")) {
+                    statusDiv.innerHTML = "<strong>Status:</strong> Connection closed";
+                }
+            };
+        };
+
+        stopBtn.onclick = () => {
+            console.log("Stop button clicked");
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const textToSend = finalTranscript.trim();
+                if (textToSend) {
+                    console.log("Sending on stop:", textToSend);
+                    ws.send(textToSend);
+                    ws.send("__DONE__");
+                    statusDiv.innerHTML = "<strong>Processing:</strong> Waiting for response...";
+                } else {
+                    console.log("No transcript to send");
+                    ws.close();
+                }
+            }
+        };
+    </script>
+</body>
+</html>
