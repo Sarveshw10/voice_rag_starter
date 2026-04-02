@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-First RAG System - AI Document Intelligence</title>
+    <style>
+        /* ========== CSS VARIABLES FOR THEMING ========== */
+        :root {
+            --primary: #6366F1;
+            --primary-dark: #4F46E5;
+            --secondary: #8B5CF6;
+            --accent: #10B981;
+            --error: #EF4444;
+            --warning: #F59E0B;
+            
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass-shadow: rgba(0, 0, 0, 0.1);
+            
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-border: rgba(102, 126, 234, 0.1);
+            
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --text-light: #9CA3AF;
+            
+            --user-bubble: #6366F1;
+            --ai-bubble: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient-start: #1a1a2e;
+            --bg-gradient-end: #16213e;
+            
+            --glass-bg: rgba(0, 0, 0, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            
+            --card-bg: rgba(30, 30, 50, 0.8);
+            --card-border: rgba(99, 102, 241, 0.2);
+            
+            --text-primary: #F9FAFB;
+            --text-secondary: #D1D5DB;
+            --text-light: #9CA3AF;
+        }
+
+        /* ========== RESET & BASE STYLES ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ========== ANIMATED BACKGROUND ========== */
+        .animated-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -100px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            bottom: -150px;
+            right: -150px;
+            animation-delay: 7s;
+        }
+
+        .orb-3 {
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: 14s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(100px, -100px) scale(1.1); }
+            66% { transform: translate(-100px, 100px) scale(0.9); }
+        }
+
+        /* ========== CONTAINER & LAYOUT ========== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ========== DARK MODE TOGGLE ========== */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 20px var(--glass-shadow);
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(99, 102, 241, 0.2);
+        }
+
+        .theme-icon {
+            font-size: 20px;
+            transition: var(--transition);
+        }
+
+        /* ========== HEADER / HERO ========== */
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 0.8s ease-out;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 60px 40px;
+            box-shadow: 0 8px 32px var(--glass-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.5;
+        }
+
+        .header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            font-size: clamp(1rem, 2vw, 1.25rem);
+            color: rgba(255, 255, 255, 0.9);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .header .tagline {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 12px;
+            font-weight: 500;
+        }
+
+        /* ========== STEP FLOW INDICATOR ========== */
+        .flow-steps {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 40px;
+            gap: 20px;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 2px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 24px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .step.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.15);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .step.completed {
+            border-color: var(--accent);
+            background: rgba(16, 185, 129, 0.15);
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: white;
+            transition: var(--transition);
+        }
+
+        .step.active .step-number {
+            background: var(--primary);
+            animation: pulse 2s infinite;
+        }
+
+        .step.completed .step-number {
+            background: var(--accent);
+        }
+
+        .step.completed .step-number::before {
+            content: '✓';
+        }
+
+        .step.completed .step-number span {
+            display: none;
+        }
+
+        .step-label {
+            font-weight: 600;
+            font-size: 14px;
+            color: white;
+        }
+
+        .step-arrow {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 20px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+        }
+
+        /* ========== GLASS CARDS ========== */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            animation: fadeInUp 0.6s ease-out;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 4px;
+        }
+
+        .card-icon {
+            font-size: 24px;
+            margin-left: auto;
+        }
+
+        /* ========== FILE UPLOAD SECTION ========== */
+        .upload-section {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+            flex-wrap: wrap;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 24px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border: 2px dashed var(--primary);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 600;
+            color: var(--primary);
+            text-align: center;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-input-label::before {
+            content: '📄';
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+            transition: var(--transition);
+        }
+
+        .file-input-label:hover {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-color: var(--secondary);
+            transform: scale(1.02);
+        }
+
+        .file-input-label:hover::before {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .file-input-label.drag-over {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+            border-color: var(--accent);
+            border-style: solid;
+            transform: scale(1.02);
+        }
+
+        .file-input-label.has-file {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .file-input-label.has-file::before {
+            content: '✓';
+            color: var(--accent);
+        }
+
+        /* ========== BUTTONS ========== */
+        button {
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            font-family: inherit;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        button:hover::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button span {
+            position: relative;
+            z-index: 1;
+        }
+
+        #uploadBtn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        #uploadBtn:hover {
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* ========== VOICE CONTROLS ========== */
+        .voice-controls {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        #speakBtn {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        #speakBtn:hover:not(:disabled) {
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* ========== STATUS BOX ========== */
+        #status {
+            padding: 24px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border-radius: 16px;
+            border-left: 4px solid var(--primary);
+            font-size: 1rem;
+            line-height: 1.8;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        #status strong {
+            color: var(--primary);
+            margin-right: 8px;
+        }
+
+        #status i {
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        /* ========== LISTENING OVERLAY ========== */
+        .listening-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .listening-overlay.active {
+            display: flex;
+        }
+
+        .listening-content {
+            text-align: center;
+            color: white;
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        .mic-animation {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 32px;
+            position: relative;
+        }
+
+        .mic-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 64px;
+            animation: micPulse 1.5s infinite;
+            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+        }
+
+        @keyframes micPulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 40px rgba(99, 102, 241, 0);
+            }
+        }
+
+        .listening-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .transcript-display {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            min-height: 80px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .interim-text {
+            opacity: 0.6;
+            font-style: italic;
+        }
+
+        /* ========== OVERLAY BUTTONS ========== */
+        .overlay-buttons {
+            margin-top: 32px;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .overlay-stop-btn {
+            background: linear-gradient(135deg, var(--error) 0%, #DC2626 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .overlay-stop-btn:hover:not(:disabled) {
+            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .overlay-cancel-btn {
+            background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .overlay-cancel-btn:hover:not(:disabled) {
+            box-shadow: 0 8px 24px rgba(107, 114, 128, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* ========== CHAT-STYLE RESULTS ========== */
+        #result {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message-bubble {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .message-bubble.user {
+            flex-direction: row-reverse;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .avatar.user-avatar {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        }
+
+        .avatar.ai-avatar {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        }
+
+        .bubble-content {
+            max-width: 70%;
+            padding: 16px 20px;
+            border-radius: 16px;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .message-bubble.user .bubble-content {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-bubble.ai .bubble-content {
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+
+        .bubble-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            opacity: 0.8;
+        }
+
+        .bubble-text {
+            font-size: 1rem;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            padding: 16px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--primary);
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+
+        /* ========== PASSAGES - EXPANDABLE ACCORDION ========== */
+        .passages-header {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .passages-header::before {
+            content: '📚';
+            font-size: 24px;
+        }
+
+        .passage {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.04) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .passage:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1);
+        }
+
+        .passage-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: var(--transition);
+            user-select: none;
+        }
+
+        .passage-header:hover {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .passage-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+            color: white;
+        }
+
+        .score-badge.high { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .score-badge.medium { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); }
+        .score-badge.low { background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); }
+
+        .source-chip {
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .expand-icon {
+            font-size: 20px;
+            transition: transform 0.3s;
+            color: var(--primary);
+        }
+
+        .passage.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .passage-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, padding 0.4s ease-out;
+        }
+
+        .passage.expanded .passage-body {
+            max-height: 500px;
+            padding: 0 20px 20px 20px;
+        }
+
+        .passage-text {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+
+        /* ========== UPLOAD PROGRESS ========== */
+        #uploadProgress {
+            margin-top: 16px;
+            display: none;
+        }
+
+        .progress-bar-container {
+            height: 6px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* ========== SUCCESS ANIMATION ========== */
+        #successAnimation {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        /* ========== UPLOADED FILES LIST ========== */
+        #uploadedFiles {
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .uploaded-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+            transition: var(--transition);
+            animation: slideInLeft 0.4s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .uploaded-file-item:hover {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%);
+            transform: translateX(4px);
+        }
+
+        .file-info-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-icon-wrapper {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .file-meta {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .file-badge {
+            padding: 6px 16px;
+            background: var(--accent);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* ========== SPINNER ========== */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ========== FOOTER ========== */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .footer a:hover {
+            color: white;
+        }
+
+        /* ========== ANIMATIONS ========== */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .header {
+                padding: 40px 20px;
+            }
+
+            .card {
+                padding: 24px;
+            }
+
+            .upload-section,
+            .voice-controls {
+                flex-direction: column;
+            }
+
+            .file-input-wrapper,
+            #uploadBtn,
+            #speakBtn,
+            #stopBtn {
+                width: 100%;
+                min-width: auto;
+            }
+
+            .bubble-content {
+                max-width: 85%;
+            }
+
+            .flow-steps {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .step-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* ========== UTILITY CLASSES ========== */
+        .hidden {
+            display: none !important;
+        }
+
+        .fade-enter {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="animated-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- Dark Mode Toggle -->
+    <div class="theme-toggle" id="themeToggle">
+        <span class="theme-icon" id="themeIcon">🌙</span>
+    </div>
+
+    <!-- Listening Overlay -->
+    <div class="listening-overlay" id="listeningOverlay">
+        <div class="listening-content">
+            <div class="mic-animation">
+                <div class="mic-circle">🎙️</div>
+            </div>
+            <div class="listening-text">Listening...</div>
+            <p style="color: rgba(255,255,255,0.8); margin-bottom: 8px;">Speak your question clearly</p>
+            <div class="transcript-display" id="overlayTranscript">
+                <span id="finalTranscriptDisplay"></span>
+                <span class="interim-text" id="interimTranscriptDisplay"></span>
+            </div>
+            <div class="overlay-buttons">
+                <button id="stopBtn" class="overlay-stop-btn"><span>⏹️ Stop & Process</span></button>
+                <button id="cancelBtn" class="overlay-cancel-btn"><span>Cancel</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header / Hero -->
+        <div class="header">
+            <h1>Voice-First RAG System</h1>
+            <p>Upload documents, ask questions with your voice, get intelligent answers powered by AI</p>
+            <div class="tagline">🚀 Next-generation document intelligence at your fingertips</div>
+        </div>
+
+        <!-- Flow Steps Indicator -->
+        <div class="flow-steps">
+            <div class="step" id="step1">
+                <div class="step-number"><span>1</span></div>
+                <div class="step-label">Upload Document</div>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step" id="step2">
+                <div class="step-number"><span>2</span></div>
+                <div class="step-label">Speak Question</div>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step" id="step3">
+                <div class="step-number"><span>3</span></div>
+                <div class="step-label">Get Answer</div>
+            </div>
+        </div>
+
+        <!-- Upload Card -->
+        <div class="card">
+            <div class="card-title">
+                📄 Document Upload
+                <span class="card-icon">📤</span>
+            </div>
+            <div class="upload-section">
+                <div class="file-input-wrapper">
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt">
+                    <label for="fileInput" class="file-input-label" id="fileLabel">
+                        <span>Choose a file (PDF, DOCX, TXT)</span>
+                    </label>
+                </div>
+                <button id="uploadBtn"><span>Upload Document</span></button>
+            </div>
+            
+            <div id="uploadProgress">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="uploadProgressBar"></div>
+                </div>
+            </div>
+
+            <div id="uploadedFiles"></div>
+        </div>
+
+        <!-- Voice Interaction Card -->
+        <div class="card">
+            <div class="card-title">
+                🎙️ Voice Interaction
+                <span class="card-icon">🗣️</span>
+            </div>
+            <div class="voice-controls">
+                <button id="speakBtn"><span>🎤 Start Speaking</span></button>
+            </div>
+        </div>
+
+        <!-- Status Card -->
+        <div class="card">
+            <div class="card-title">
+                📊 Status
+                <span class="card-icon">💬</span>
+            </div>
+            <div id="status">
+                <strong>Status:</strong> Ready to assist
+            </div>
+        </div>
+
+        <!-- Result Card -->
+        <div class="card" id="resultCard" style="display: none;">
+            <div class="card-title">
+                💡 Conversation
+                <span class="card-icon">💭</span>
+            </div>
+            <div id="result"></div>
+        </div>
+
+        <!-- Passages Card -->
+        <div class="card" id="passagesCard" style="display: none;">
+            <div id="passages"></div>
+        </div>
+
+        <!-- Success Animation Container -->
+        <div id="successAnimation"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Made by sarvesh walse</p>
+        <p style="margin-top: 8px; font-size: 0.8rem;">v1.0.0 • <a href="#">Documentation</a> • <a href="#">Support</a></p>
+    </div>
+
+    <script>
+        // ========== THEME TOGGLE ==========
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const html = document.documentElement;
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            themeIcon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // ========== DRAG & DROP FILE UPLOAD ==========
+        const fileInput = document.getElementById('fileInput');
+        const fileLabel = document.getElementById('fileLabel');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, () => {
+                fileLabel.classList.add('drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, () => {
+                fileLabel.classList.remove('drag-over');
+            }, false);
+        });
+
+        fileLabel.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            handleFileSelect();
+        }, false);
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (file) {
+                fileLabel.innerHTML = `<span>✓ ${file.name}</span>`;
+                fileLabel.classList.add('has-file');
+            }
+        }
+
+        // ========== FLOW STEPS LOGIC ==========
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const step3 = document.getElementById('step3');
+
+        function updateSteps(activeStep) {
+            [step1, step2, step3].forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+
+            if (activeStep >= 1) step1.classList.add('completed');
+            if (activeStep >= 2) {
+                step1.classList.add('completed');
+                step2.classList.add('completed');
+            }
+            if (activeStep >= 3) {
+                step1.classList.add('completed');
+                step2.classList.add('completed');
+                step3.classList.add('completed');
+            }
+
+            if (activeStep === 1) step1.classList.add('active');
+            if (activeStep === 2) step2.classList.add('active');
+            if (activeStep === 3) step3.classList.add('active');
+        }
+
+        // ========== ORIGINAL JAVASCRIPT (PRESERVED) ==========
+        const uploadBtn = document.getElementById('uploadBtn');
+        const speakBtn = document.getElementById('speakBtn');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        const resultCard = document.getElementById('resultCard');
+        const passagesDiv = document.getElementById('passages');
+        const passagesCard = document.getElementById('passagesCard');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const uploadProgressBar = document.getElementById('uploadProgressBar');
+        const uploadedFilesDiv = document.getElementById('uploadedFiles');
+        const successAnimationDiv = document.getElementById('successAnimation');
+        const listeningOverlay = document.getElementById('listeningOverlay');
+        const finalTranscriptDisplay = document.getElementById('finalTranscriptDisplay');
+        const interimTranscriptDisplay = document.getElementById('interimTranscriptDisplay');
+
+        // New: Get overlay buttons
+        const stopBtn = document.getElementById('stopBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+
+        let ws = null;
+        let recognition = null;
+        let finalTranscript = '';
+        let uploadedFilesData = [];
+
+        function showSuccessAnimation(fileName, chunksAdded) {
+            successAnimationDiv.innerHTML = `
+                <div style="
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    animation: scaleIn 0.4s ease-out;
+                ">
+                    <div style="font-size: 64px; margin-bottom: 16px;">✅</div>
+                    <div style="font-size: 1.2rem; font-weight: 700; color: #10B981; margin-bottom: 8px;">Success!</div>
+                    <div style="color: #6B7280;">${fileName} uploaded</div>
+                    <div style="color: #9CA3AF; font-size: 0.9rem; margin-top: 8px;">${chunksAdded} chunks processed</div>
+                </div>
+            `;
+            setTimeout(() => {
+                successAnimationDiv.innerHTML = '';
+            }, 3000);
+        }
+
+        function addUploadedFile(fileName, chunksAdded) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'uploaded-file-item';
+            fileItem.innerHTML = `
+                <div class="file-info-section">
+                    <div class="file-icon-wrapper">📄</div>
+                    <div class="file-details">
+                        <div class="file-name">${fileName}</div>
+                        <div class="file-meta">${chunksAdded} chunks • Uploaded just now</div>
+                    </div>
+                </div>
+                <div class="file-badge">✓ Ready</div>
+            `;
+            
+            uploadedFilesDiv.appendChild(fileItem);
+            uploadedFilesData.push({ fileName, chunksAdded, timestamp: new Date() });
+            updateSteps(1);
+        }
+
+        function animateProgress() {
+            uploadProgress.style.display = 'block';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 30;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                }
+                uploadProgressBar.style.width = progress + '%';
+            }, 200);
+            return interval;
+        }
+
+        uploadBtn.onclick = async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                statusDiv.innerHTML = "<strong>⚠️ Warning:</strong> Please select a file first";
+                return;
+            }
+
+            uploadBtn.innerHTML = '<span class="spinner"></span><span>Uploading...</span>';
+            uploadBtn.disabled = true;
+
+            const progressInterval = animateProgress();
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await fetch("/upload_doc", { method: "POST", body: formData });
+                const data = await res.json();
+
+                clearInterval(progressInterval);
+                uploadProgressBar.style.width = '100%';
+
+                if (data.status === "success") {
+                    setTimeout(() => {
+                        uploadProgress.style.display = 'none';
+                        uploadProgressBar.style.width = '0%';
+                        showSuccessAnimation(file.name, data.chunks_added);
+                        addUploadedFile(file.name, data.chunks_added);
+                        statusDiv.innerHTML = `<strong>✅ Success!</strong> Document ready for queries`;
+                        fileLabel.innerHTML = '<span>Choose a file (PDF, DOCX, TXT)</span>';
+                        fileLabel.classList.remove('has-file');
+                        fileInput.value = '';
+                    }, 500);
+                } else {
+                    uploadProgress.style.display = 'none';
+                    statusDiv.innerHTML = `<strong>❌ Error:</strong> Upload failed`;
+                }
+            } catch (error) {
+                clearInterval(progressInterval);
+                uploadProgress.style.display = 'none';
+                statusDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+            } finally {
+                uploadBtn.innerHTML = '<span>Upload Document</span>';
+                uploadBtn.disabled = false;
+            }
+        };
+
+        speakBtn.onclick = async () => {
+            finalTranscript = '';
+            statusDiv.innerHTML = "<strong>🔄 Connecting...</strong>";
+            resultCard.style.display = 'none';
+            passagesCard.style.display = 'none';
+            resultDiv.innerHTML = "";
+            passagesDiv.innerHTML = "";
+            updateSteps(2);
+
+            ws = new WebSocket(`ws://${location.host}/ask`);
+
+            ws.onopen = () => {
+                console.log("WebSocket connected");
+                speakBtn.disabled = true;
+                listeningOverlay.classList.add('active');
+                
+                if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    recognition = new SpeechRecognition();
+                    recognition.continuous = true;
+                    recognition.interimResults = true;
+                    recognition.lang = 'en-US';
+
+                    recognition.onstart = () => {
+                        console.log("Speech recognition started");
+                        statusDiv.innerHTML = "<strong class='listening-indicator'>🎙️ Listening:</strong> Speak now...";
+                    };
+
+                    recognition.onresult = (event) => {
+                        let interim = '';
+                        let newFinal = '';
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                newFinal += transcript + ' ';
+                            } else {
+                                interim += transcript;
+                            }
+                        }
+                        if (newFinal.trim()) {
+                            finalTranscript += newFinal;
+                            console.log("Final transcript so far:", finalTranscript);
+                        }
+                        statusDiv.innerHTML = `<strong class='listening-indicator'>🎙️ Listening:</strong> ${finalTranscript.trim()} <i>${interim}</i>`;
+                        finalTranscriptDisplay.textContent = finalTranscript.trim();
+                        interimTranscriptDisplay.textContent = interim;
+                    };
+
+                    recognition.onerror = (e) => {
+                        console.error("Speech recognition error:", e.error);
+                        statusDiv.innerHTML = `<strong>❌ Error:</strong> ${e.error}`;
+                        listeningOverlay.classList.remove('active');
+                    };
+
+                    recognition.onend = () => {
+                        console.log("Speech recognition ended, final transcript:", finalTranscript);
+                        listeningOverlay.classList.remove('active');
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            if (finalTranscript.trim()) {
+                                console.log("Sending to server:", finalTranscript.trim());
+                                ws.send(finalTranscript.trim());
+                                ws.send("__DONE__");
+                                statusDiv.innerHTML = "<strong>⏳ Processing:</strong> <span class='spinner'></span> Analyzing your question...";
+                            } else {
+                                console.log("No transcript captured");
+                                statusDiv.innerHTML = "<strong>⚠️ Warning:</strong> No speech detected. Please try again.";
+                                ws.close();
+                            }
+                        } else {
+                            console.log("WebSocket not open, state:", ws ? ws.readyState : "null");
+                        }
+                    };
+
+                    try {
+                        recognition.start();
+                    } catch (error) {
+                        console.error("Failed to start speech recognition:", error);
+                        statusDiv.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+                        listeningOverlay.classList.remove('active');
+                    }
+                } else {
+                    statusDiv.innerHTML = "<strong>⚠️ Warning:</strong> Browser does not support speech recognition (use Chrome/Edge).";
+                    ws.close();
+                    listeningOverlay.classList.remove('active');
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                statusDiv.innerHTML = "<strong>❌ WebSocket Error:</strong> Connection failed";
+                listeningOverlay.classList.remove('active');
+            };
+
+            ws.onmessage = (event) => {
+                console.log("Received message:", event.data);
+                const msg = JSON.parse(event.data);
+                if (msg.type === "partial") {
+                    statusDiv.innerHTML += `<br><strong>📨 Server received:</strong> ${msg.text}`;
+                } else if (msg.type === "final") {
+                    updateSteps(3);
+                    statusDiv.innerHTML = "<strong>✅ Done!</strong> Response received";
+                    resultCard.style.display = 'block';
+                    
+                    // Chat-style bubbles
+                    resultDiv.innerHTML = `
+                        <div class="message-bubble user">
+                            <div class="avatar user-avatar">👤</div>
+                            <div class="bubble-content">
+                                <div class="bubble-label">You asked</div>
+                                <div class="bubble-text">${msg.query}</div>
+                            </div>
+                        </div>
+                        <div class="message-bubble ai">
+                            <div class="avatar ai-avatar">🤖</div>
+                            <div class="bubble-content">
+                                <div class="bubble-label">AI Answer</div>
+                                <div class="bubble-text">${msg.answer}</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if (msg.passages && msg.passages.length > 0) {
+                        passagesCard.style.display = 'block';
+                        let passagesHTML = '<div class="passages-header">Source References</div>';
+                        
+                        msg.passages.forEach((p, idx) => {
+                            const score = parseFloat(p.score);
+                            let scoreClass = 'low';
+                            if (score > 0.8) scoreClass = 'high';
+                            else if (score > 0.6) scoreClass = 'medium';
+                            
+                            passagesHTML += `
+                                <div class="passage" id="passage-${idx}">
+                                    <div class="passage-header" onclick="togglePassage(${idx})">
+                                        <div class="passage-meta">
+                                            <span class="score-badge ${scoreClass}">📊 ${p.score}</span>
+                                            <span class="source-chip">📄 ${p.source}</span>
+                                        </div>
+                                        <span class="expand-icon">▼</span>
+                                    </div>
+                                    <div class="passage-body">
+                                        <div class="passage-text">${p.text}</div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        passagesDiv.innerHTML = passagesHTML;
+                    }
+                    
+                    if (recognition) {
+                        recognition.stop();
+                        recognition = null;
+                    }
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.close();
+                    }
+                }
+            };
+
+            ws.onclose = (event) => {
+                console.log("WebSocket closed:", event.code, event.reason);
+                speakBtn.disabled = false;
+                listeningOverlay.classList.remove('active');
+                if (statusDiv.innerHTML.includes("Listening") || statusDiv.innerHTML.includes("Processing")) {
+                    statusDiv.innerHTML = "<strong>Status:</strong> Ready to assist";
+                }
+            };
+        };
+
+        // Overlay Stop button
+        stopBtn.onclick = () => {
+            console.log("Stop button clicked");
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const textToSend = finalTranscript.trim();
+                if (textToSend) {
+                    console.log("Sending on stop:", textToSend);
+                    ws.send(textToSend);
+                    ws.send("__DONE__");
+                    statusDiv.innerHTML = "<strong>⏳ Processing:</strong> <span class='spinner'></span> Analyzing your question...";
+                } else {
+                    console.log("No transcript to send");
+                    ws.close();
+                }
+            }
+            listeningOverlay.classList.remove('active');
+        };
+
+        // Optional Cancel button
+        cancelBtn.onclick = () => {
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+            if (ws) {
+                ws.close();
+            }
+            listeningOverlay.classList.remove('active');
+            statusDiv.innerHTML = "<strong>Status:</strong> Ready to assist";
+            speakBtn.disabled = false;
+        };
+
+        // Toggle passage expansion
+        function togglePassage(idx) {
+            const passage = document.getElementById(`passage-${idx}`);
+            passage.classList.toggle('expanded');
+        }
+
+        // Make togglePassage globally available
+        window.togglePassage = togglePassage;
+    </script>
+</body>
+</html>

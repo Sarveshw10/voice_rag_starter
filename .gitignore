@@ -1,0 +1,10 @@
+# .gitignore
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/              # persisted FAISS index — do NOT commit
+logs/
+*.faiss
+*.pkl
+.DS_Store
